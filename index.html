@@ -12,12 +12,13 @@
         .btn { background: #007AFF; color: white; border: none; padding: 12px; border-radius: 8px; font-size: 1rem; width: 100%; font-weight: bold; cursor: pointer; margin-top: 5px; }
         .btn-green { background: #34C759; }
         .btn-red { background: #FF3B30; }
+        .btn-orange { background: #FF9500; }
         .btn-sm { padding: 6px 12px; font-size: 0.85rem; width: auto; }
         input[type="text"] { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; margin-top: 5px; }
         
         #camModal, #previewModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; justify-content: center; align-items: center; }
         .modal-content { background: white; width: 92%; max-width: 400px; padding: 15px; border-radius: 12px; text-align: center; box-sizing: border-box; }
-        video, canvas#snapshotCanvas, img { width: 100%; height: 260px; background: black; border-radius: 8px; object-fit: cover; }
+        video, canvas#snapshotCanvas, img { width: 100%; height: 240px; background: black; border-radius: 8px; object-fit: cover; }
         .detected-box { background: #eef7ee; color: #2e7d32; padding: 8px; border-radius: 6px; font-weight: bold; margin: 10px 0; font-size: 0.95rem; border: 1px dashed #2e7d32; }
         
         table { width: 100%; margin-top: 15px; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; }
@@ -66,7 +67,10 @@
             
             <div class="detected-box" id="detectedStatus">Đang tìm mã vạch...</div>
 
-            <div style="margin: 10px 0; text-align: left; font-size: 0.85rem;">
+            <!-- Nút bật/tắt đèn Flash -->
+            <button class="btn btn-orange btn-sm" id="btnTorch" onclick="toggleTorch()" style="width:100%; margin-bottom: 8px;">🔦 Bật Flash</button>
+
+            <div style="margin: 5px 0; text-align: left; font-size: 0.85rem;">
                 <label><input type="checkbox" id="chkPic" checked> Chụp & Xem ảnh (Pic)</label>
             </div>
             
@@ -94,22 +98,24 @@
         let currentDetectedCode = "";
         let latestImageDataURL = "";
         let isFrozen = false;
+        let activeStream = null;
+        let torchEnabled = false;
 
         async function openCamera() {
             document.getElementById("camModal").style.display = "flex";
             document.getElementById("detectedStatus").innerText = "Đang tìm mã vạch...";
             document.getElementById("detectedStatus").style.color = "#888";
+            document.getElementById("btnTorch").innerText = "🔦 Bật Flash";
             
             document.getElementById("video").style.display = "block";
             document.getElementById("snapshotCanvas").style.display = "none";
             currentDetectedCode = "";
             latestImageDataURL = "";
             isFrozen = false;
+            torchEnabled = false;
 
             try {
                 codeReader = new ZXing.BrowserMultiFormatReader();
-                
-                // Cấu hình tối ưu độ phân giải cao HD cho camera sau điện thoại
                 const constraints = {
                     video: {
                         facingMode: { ideal: "environment" },
@@ -118,13 +124,11 @@
                     }
                 };
 
-                // Lấy luồng media với độ phân giải nét hơn
-                const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+                activeStream = await navigator.mediaDevices.getUserMedia(constraints);
                 const videoElement = document.getElementById("video");
-                videoElement.srcObject = mediaStream;
+                videoElement.srcObject = activeStream;
 
-                // Đọc mã vạch trực tiếp từ luồng video chất lượng cao
-                codeReader.decodeFromStream(mediaStream, 'video', (result, err) => {
+                codeReader.decodeFromStream(activeStream, 'video', (result, err) => {
                     if (result && !isFrozen) {
                         isFrozen = true;
                         currentDetectedCode = result.text;
@@ -132,7 +136,7 @@
                         document.getElementById("detectedStatus").style.color = "#2e7d32";
                         if (navigator.vibrate) navigator.vibrate(100);
 
-                        // ĐÓNG BĂNG HÌNH ẢNH SẮC NÉT TRÊN CANVAS
+                        // Đóng băng khung hình sắc nét
                         const canvas = document.getElementById("snapshotCanvas");
                         let w = videoElement.videoWidth || 1280;
                         let h = videoElement.videoHeight || 720;
@@ -141,16 +145,13 @@
                         const ctx = canvas.getContext("2d");
                         ctx.drawImage(videoElement, 0, 0, w, h);
 
-                        // Chuyển hiển thị sang canvas đứng yên
                         videoElement.style.display = "none";
                         canvas.style.display = "block";
                         latestImageDataURL = canvas.toDataURL("image/png");
 
-                        // Dừng hẳn luồng quét và tắt đèn camera stream tiết kiệm pin
                         if (codeReader) {
                             codeReader.reset();
                         }
-                        mediaStream.getTracks().forEach(track => track.stop());
                     }
                 });
             } catch (e) {
@@ -159,10 +160,33 @@
             }
         }
 
+        async function toggleTorch() {
+            if (!activeStream) return;
+            const track = activeStream.getVideoTracks()[0];
+            try {
+                const capabilities = track.getCapabilities();
+                if (capabilities && capabilities.torch) {
+                    torchEnabled = !torchEnabled;
+                    await track.applyConstraints({
+                        advanced: [{ torch: torchEnabled }]
+                    });
+                    document.getElementById("btnTorch").innerText = torchEnabled ? "🔦 Tắt Flash" : "🔦 Bật Flash";
+                } else {
+                    alert("Trình duyệt hoặc thiết bị này không hỗ trợ điều khiển Flash qua Web.");
+                }
+            } catch (err) {
+                alert("Không thể bật Flash trên thiết bị này.");
+            }
+        }
+
         function closeCamera() {
             if (codeReader) {
                 codeReader.reset();
                 codeReader = null;
+            }
+            if (activeStream) {
+                activeStream.getTracks().forEach(track => track.stop());
+                activeStream = null;
             }
             document.getElementById("camModal").style.display = "none";
         }
