@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kiểm Kê Kho iOS</title>
+    <!-- Thư viện đọc mã vạch chuẩn qua CDN -->
+    <script src="https://unpkg.com/@zxing/library@latest"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; padding: 15px; background: #f4f4f9; color: #333; margin: 0; }
         h2 { font-size: 1.2rem; text-align: center; color: #007AFF; }
@@ -14,10 +16,9 @@
         .btn-sm { padding: 6px 12px; font-size: 0.85rem; width: auto; }
         input[type="text"] { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; margin-top: 5px; }
         
-        /* Modal Camera Popup */
-        #camModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center; }
+        #camModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; justify-content: center; align-items: center; }
         .modal-content { background: white; width: 90%; max-width: 400px; padding: 15px; border-radius: 12px; text-align: center; }
-        video { width: 100%; height: 250px; background: black; border-radius: 8px; object-fit: cover; }
+        video { width: 100%; height: 240px; background: black; border-radius: 8px; object-fit: cover; }
         
         table { width: 100%; margin-top: 15px; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; }
         th, td { border: 1px solid #eee; padding: 8px; font-size: 0.85rem; text-align: left; }
@@ -59,7 +60,7 @@
     <!-- Popup Camera -->
     <div id="camModal">
         <div class="modal-content">
-            <h3 style="margin-top:0; font-size:1rem;">Quét / Chụp Mã Vạch</h3>
+            <h3 style="margin-top:0; font-size:1rem;">Chĩa Camera vào Mã Vạch</h3>
             <video id="video" autoplay playsinline></video>
             <canvas id="canvas" style="display:none;"></canvas>
             
@@ -68,7 +69,7 @@
             </div>
             
             <div style="display: flex; gap: 10px;">
-                <button class="btn btn-green" onclick="captureAndScan()">Scan</button>
+                <button class="btn btn-green" onclick="captureAndScan()">Scan (Chụp & Đọc)</button>
                 <button class="btn btn-red" onclick="closeCamera()">Hủy</button>
             </div>
         </div>
@@ -87,7 +88,6 @@
                 });
             } catch (err) {
                 try {
-                    // Fallback nếu camera sau bị lỗi thì gọi camera bất kỳ
                     mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
                 } catch (e) {
                     alert("Không thể mở camera! Hãy kiểm tra quyền Safari trong Cài đặt iOS.");
@@ -106,27 +106,44 @@
             document.getElementById("camModal").style.display = "none";
         }
 
-        function captureAndScan() {
+        async function captureAndScan() {
             const video = document.getElementById("video");
             if (!video.srcObject) {
                 alert("Camera chưa sẵn sàng!");
                 return;
             }
 
-            // Chụp khung hình hiện tại vào Canvas
             const canvas = document.getElementById("canvas");
             canvas.width = video.videoWidth || 640;
             canvas.height = video.videoHeight || 480;
             const ctx = canvas.getContext("2d");
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-            // Vì trình duyệt không có sẵn bộ đọc barcode native mạnh nếu thiếu thư viện nặng,
-            // Ta yêu cầu nhập mã hoặc quét thực tế, KHÔNG GIẢ LẬP MẶC ĐỊNH NỮA:
-            let detectedCode = prompt("Nhập mã vạch/Serial quét được từ khung hình:", "ITEM-" + Math.floor(Math.random() * 90000 + 10000));
-            
-            if (!detectedCode) return; // Nếu bấm hủy thì thôi
+            let detectedCode = "";
 
-            // Xử lý đếm số thứ tự ảnh nếu trùng mã
+            // Thử dùng thư viện ZXing để đọc mã vạch từ ảnh chụp trên canvas
+            try {
+                const codeReader = new ZXing.BrowserBarcodeReader();
+                let result = await codeReader.decodeFromImage(canvas);
+                if (result && result.text) {
+                    detectedCode = result.text;
+                }
+            } catch (e) {
+                // Không đọc được tự động từ ảnh
+            }
+
+            // Nếu không tự động bắt được mã từ ảnh, hiện ô trống hoàn toàn cho bạn tự điền hoặc quét tay
+            if (!detectedCode) {
+                detectedCode = prompt("Không tự động đọc được mã từ ảnh. Vui lòng nhập chính xác mã vạch/Serial sản phẩm:", "");
+            }
+
+            if (!detectedCode || detectedCode.trim() === "") {
+                alert("Đã hủy lưu vì chưa có mã vạch!");
+                return;
+            }
+
+            detectedCode = detectedCode.trim();
+
             if (!codeCounters[detectedCode]) {
                 codeCounters[detectedCode] = 1;
             } else {
@@ -135,7 +152,6 @@
             let seq = String(codeCounters[detectedCode]).padStart(3, '0');
             let imgName = `${detectedCode}_${seq}.png`;
 
-            // Nếu chọn chụp ảnh (Pic)
             let isPicChecked = document.getElementById("chkPic").checked;
             if (isPicChecked) {
                 let dataURL = canvas.toDataURL("image/png");
@@ -195,6 +211,7 @@
             document.getElementById("count").innerText = scannedData.length;
         }
 
+        let csvExported = false;
         function exportCSV() {
             if (scannedData.length === 0) { alert("Chưa có dữ liệu!"); return; }
             let csv = "STT,Barcode,Thoi_Gian,Anh\n";
