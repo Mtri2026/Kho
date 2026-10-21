@@ -77,12 +77,12 @@
         </div>
     </div>
 
-    <!-- Popup Xem trước ảnh vừa chụp cho iOS -->
+    <!-- Popup Xem trước ảnh vừa chụp -->
     <div id="previewModal">
         <div class="modal-content">
             <h3 id="previewTitle" style="margin-top:0; font-size:0.95rem; color:#007AFF;">Ảnh chụp sản phẩm</h3>
             <img id="previewImg" src="" alt="Captured Image">
-            <p style="font-size: 0.75rem; color: #666; margin: 8px 0;">Mẹo: Chạm giữ vào ảnh phía trên và chọn "Lưu hình ảnh" để lưu về iPhone.</p>
+            <p style="font-size: 0.75rem; color: #666; margin: 8px 0;">Chạm giữ vào ảnh và chọn "Lưu hình ảnh" để lưu về iPhone.</p>
             <button class="btn" onclick="closePreview()">Đóng & Tiếp tục</button>
         </div>
     </div>
@@ -152,14 +152,18 @@
             if (isPicChecked) {
                 const video = document.getElementById("video");
                 const canvas = document.getElementById("canvas");
-                canvas.width = video.videoWidth || 640;
-                canvas.height = video.videoHeight || 480;
+                
+                // Khắc phục lỗi ảnh trắng: Ép lấy kích thước chuẩn của video stream
+                let w = video.videoWidth || video.clientWidth || 640;
+                let h = video.videoHeight || video.clientHeight || 480;
+                canvas.width = w;
+                canvas.height = h;
+
                 const ctx = canvas.getContext("2d");
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                ctx.drawImage(video, 0, 0, w, h);
 
                 let dataURL = canvas.toDataURL("image/png");
                 
-                // Hiển thị popup chứa thẻ <img> để người dùng bấm lưu thủ công trên iOS
                 document.getElementById("previewTitle").innerText = "Ảnh: " + imgName;
                 document.getElementById("previewImg").src = dataURL;
                 document.getElementById("previewModal").style.display = "flex";
@@ -216,7 +220,7 @@
         }
 
         function exportCSV() {
-            if (scannedData.length === 0) { alert("Chưa có dữ liệu!"); return; }
+            if (scannedData.length === 0) { alert("Chura có dữ liệu!"); return; }
             let csv = "STT,Barcode,Thoi_Gian,Anh\n";
             scannedData.forEach((row, i) => {
                 csv += `${scannedData.length - i},${row.code},${row.time},${row.img}\n`;
