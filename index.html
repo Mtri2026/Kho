@@ -92,12 +92,14 @@
         let codeCounters = {};
         let codeReader = null;
         let currentDetectedCode = "";
+        let latestImageDataURL = "";
 
         async function openCamera() {
             document.getElementById("camModal").style.display = "flex";
             document.getElementById("detectedStatus").innerText = "Đang tìm mã vạch...";
             document.getElementById("detectedStatus").style.color = "#888";
             currentDetectedCode = "";
+            latestImageDataURL = "";
 
             try {
                 codeReader = new ZXing.BrowserMultiFormatReader();
@@ -107,6 +109,17 @@
                         document.getElementById("detectedStatus").innerText = "Đã tìm thấy: " + currentDetectedCode;
                         document.getElementById("detectedStatus").style.color = "#2e7d32";
                         if (navigator.vibrate) navigator.vibrate(100);
+
+                        // CHỤP HÌNH TỰ ĐỘNG NGAY LÚC QUÉT TRÚNG MÃ ĐỂ KHÔNG BỊ TRẮNG TRƠN
+                        const video = document.getElementById("video");
+                        const canvas = document.getElementById("canvas");
+                        let w = video.videoWidth || video.clientWidth || 640;
+                        let h = video.videoHeight || video.clientHeight || 480;
+                        canvas.width = w;
+                        canvas.height = h;
+                        const ctx = canvas.getContext("2d");
+                        ctx.drawImage(video, 0, 0, w, h);
+                        latestImageDataURL = canvas.toDataURL("image/png");
                     }
                 });
             } catch (e) {
@@ -149,23 +162,9 @@
             
             closeCamera();
 
-            if (isPicChecked) {
-                const video = document.getElementById("video");
-                const canvas = document.getElementById("canvas");
-                
-                // Khắc phục lỗi ảnh trắng: Ép lấy kích thước chuẩn của video stream
-                let w = video.videoWidth || video.clientWidth || 640;
-                let h = video.videoHeight || video.clientHeight || 480;
-                canvas.width = w;
-                canvas.height = h;
-
-                const ctx = canvas.getContext("2d");
-                ctx.drawImage(video, 0, 0, w, h);
-
-                let dataURL = canvas.toDataURL("image/png");
-                
+            if (isPicChecked && latestImageDataURL) {
                 document.getElementById("previewTitle").innerText = "Ảnh: " + imgName;
-                document.getElementById("previewImg").src = dataURL;
+                document.getElementById("previewImg").src = latestImageDataURL;
                 document.getElementById("previewModal").style.display = "flex";
             }
 
@@ -220,7 +219,7 @@
         }
 
         function exportCSV() {
-            if (scannedData.length === 0) { alert("Chura có dữ liệu!"); return; }
+            if (scannedData.length === 0) { alert("Chưa có dữ liệu!"); return; }
             let csv = "STT,Barcode,Thoi_Gian,Anh\n";
             scannedData.forEach((row, i) => {
                 csv += `${scannedData.length - i},${row.code},${row.time},${row.img}\n`;
