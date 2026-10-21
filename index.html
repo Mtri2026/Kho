@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kiểm Kê Kho iOS</title>
-    <!-- Thư viện đọc mã vạch chuẩn qua CDN -->
-    <script src="https://unpkg.com/@zxing/library@latest"></script>
+    <!-- Thư viện giải mã mã vạch cực mạnh cho Web -->
+    <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.19.1/umd/index.min.js"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; padding: 15px; background: #f4f4f9; color: #333; margin: 0; }
         h2 { font-size: 1.2rem; text-align: center; color: #007AFF; }
@@ -17,8 +17,9 @@
         input[type="text"] { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; margin-top: 5px; }
         
         #camModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; justify-content: center; align-items: center; }
-        .modal-content { background: white; width: 90%; max-width: 400px; padding: 15px; border-radius: 12px; text-align: center; }
-        video { width: 100%; height: 240px; background: black; border-radius: 8px; object-fit: cover; }
+        .modal-content { background: white; width: 92%; max-width: 400px; padding: 15px; border-radius: 12px; text-align: center; box-sizing: border-box; }
+        video { width: 100%; height: 260px; background: black; border-radius: 8px; object-fit: contain; }
+        .detected-box { background: #eef7ee; color: #2e7d32; padding: 8px; border-radius: 6px; font-weight: bold; margin: 10px 0; font-size: 0.95rem; border: 1px dashed #2e7d32; }
         
         table { width: 100%; margin-top: 15px; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; }
         th, td { border: 1px solid #eee; padding: 8px; font-size: 0.85rem; text-align: left; }
@@ -64,12 +65,14 @@
             <video id="video" autoplay playsinline></video>
             <canvas id="canvas" style="display:none;"></canvas>
             
-            <div style="margin: 10px 0; text-align: left; font-size: 0.9rem;">
+            <div class="detected-box" id="detectedStatus">Đang tìm mã vạch...</div>
+
+            <div style="margin: 10px 0; text-align: left; font-size: 0.85rem;">
                 <label><input type="checkbox" id="chkPic" checked> Chụp & Tải ảnh (Pic) định dạng [barcode]_xxx</label>
             </div>
             
             <div style="display: flex; gap: 10px;">
-                <button class="btn btn-green" onclick="captureAndScan()">Scan (Chụp & Đọc)</button>
+                <button class="btn btn-green" onclick="saveCurrentScan()">Scan (Lưu Dữ Liệu)</button>
                 <button class="btn btn-red" onclick="closeCamera()">Hủy</button>
             </div>
         </div>
@@ -78,82 +81,76 @@
     <script>
         let scannedData = [];
         let codeCounters = {};
-        let mediaStream = null;
+        let codeReader = null;
+        let currentDetectedCode = "";
 
         async function openCamera() {
             document.getElementById("camModal").style.display = "flex";
+            document.getElementById("detectedStatus").innerText = "Đang tìm mã vạch...";
+            document.getElementById("detectedStatus").style.color = "#888";
+            currentDetectedCode = "";
+
             try {
-                mediaStream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: { exact: "environment" } } 
+                codeReader = new ZXing.BrowserMultiFormatReader();
+                const videoElement = document.getElementById("video");
+                
+                // Quét liên tục trên luồng Camera
+                codeReader.decodeFromVideoDevice(undefined, 'video', (result, err) => {
+                    if (result) {
+                        currentDetectedCode = result.text;
+                        document.getElementById("detectedStatus").innerText = "Đã tìm thấy: " + currentDetectedCode;
+                        document.getElementById("detectedStatus").style.color = "#2e7d32";
+                        if (navigator.vibrate) navigator.vibrate(100);
+                    }
                 });
-            } catch (err) {
-                try {
-                    mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
-                } catch (e) {
-                    alert("Không thể mở camera! Hãy kiểm tra quyền Safari trong Cài đặt iOS.");
-                    closeCamera();
-                    return;
-                }
+            } catch (e) {
+                alert("Không thể khởi động Camera. Hãy kiểm tra quyền truy cập Safari!");
+                closeCamera();
             }
-            document.getElementById("video").srcObject = mediaStream;
         }
 
         function closeCamera() {
-            if (mediaStream) {
-                mediaStream.getTracks().forEach(track => track.stop());
-                mediaStream = null;
+            if (codeReader) {
+                codeReader.reset();
+                codeReader = null;
             }
             document.getElementById("camModal").style.display = "none";
         }
 
-        async function captureAndScan() {
-            const video = document.getElementById("video");
-            if (!video.srcObject) {
-                alert("Camera chưa sẵn sàng!");
+        function saveCurrentScan() {
+            let finalCode = currentDetectedCode;
+
+            // Nếu camera chưa tự bắt được mã vạch trong thời gian thực, cho phép xác nhận/nhập thủ công
+            if (!finalCode) {
+                finalCode = prompt("Chưa bắt tự động được mã. Bạn có thể gõ thủ công mã vạch vào đây:", "");
+            }
+
+            if (!finalCode || finalCode.trim() === "") {
+                alert("Vui lòng quét đúng mã vạch hoặc nhập mã trước khi bấm Scan!");
                 return;
             }
 
-            const canvas = document.getElementById("canvas");
-            canvas.width = video.videoWidth || 640;
-            canvas.height = video.videoHeight || 480;
-            const ctx = canvas.getContext("2d");
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            finalCode = finalCode.trim();
 
-            let detectedCode = "";
-
-            // Thử dùng thư viện ZXing để đọc mã vạch từ ảnh chụp trên canvas
-            try {
-                const codeReader = new ZXing.BrowserBarcodeReader();
-                let result = await codeReader.decodeFromImage(canvas);
-                if (result && result.text) {
-                    detectedCode = result.text;
-                }
-            } catch (e) {
-                // Không đọc được tự động từ ảnh
-            }
-
-            // Nếu không tự động bắt được mã từ ảnh, hiện ô trống hoàn toàn cho bạn tự điền hoặc quét tay
-            if (!detectedCode) {
-                detectedCode = prompt("Không tự động đọc được mã từ ảnh. Vui lòng nhập chính xác mã vạch/Serial sản phẩm:", "");
-            }
-
-            if (!detectedCode || detectedCode.trim() === "") {
-                alert("Đã hủy lưu vì chưa có mã vạch!");
-                return;
-            }
-
-            detectedCode = detectedCode.trim();
-
-            if (!codeCounters[detectedCode]) {
-                codeCounters[detectedCode] = 1;
+            // Xử lý đếm số thứ tự ảnh nếu trùng mã
+            if (!codeCounters[finalCode]) {
+                codeCounters[finalCode] = 1;
             } else {
-                codeCounters[detectedCode]++;
+                codeCounters[finalCode]++;
             }
-            let seq = String(codeCounters[detectedCode]).padStart(3, '0');
-            let imgName = `${detectedCode}_${seq}.png`;
+            let seq = String(codeCounters[finalCode]).padStart(3, '0');
+            let imgName = `${finalCode}_${seq}.png`;
 
+            // Xử lý chụp khung hình canvas để tải ảnh xuống
             let isPicChecked = document.getElementById("chkPic").checked;
             if (isPicChecked) {
+                const video = document.getElementById("video");
+                const canvas = document.getElementById("canvas");
+                canvas.width = video.videoWidth || 640;
+                canvas.height = video.videoHeight || 480;
+                const ctx = canvas.getContext("2d");
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
                 let dataURL = canvas.toDataURL("image/png");
                 let link = document.createElement("a");
                 link.href = dataURL;
@@ -164,7 +161,7 @@
             }
 
             let timeNow = new Date().toLocaleTimeString();
-            scannedData.unshift({ code: detectedCode, time: timeNow, img: isPicChecked ? imgName : "Không" });
+            scannedData.unshift({ code: finalCode, time: timeNow, img: isPicChecked ? imgName : "Không" });
             updateTable();
             closeCamera();
         }
@@ -211,7 +208,6 @@
             document.getElementById("count").innerText = scannedData.length;
         }
 
-        let csvExported = false;
         function exportCSV() {
             if (scannedData.length === 0) { alert("Chưa có dữ liệu!"); return; }
             let csv = "STT,Barcode,Thoi_Gian,Anh\n";
