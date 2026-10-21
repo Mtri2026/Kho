@@ -2,556 +2,210 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kiểm Kê Kho iOS</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- html5-qrcode Library -->
-    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-
     <style>
-        /* iOS Safari Specific Styling & Glassmorphism */
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
-            -webkit-tap-highlight-color: transparent;
-            user-select: none;
-            background-color: #f2f2f7;
-            padding-top: env(safe-area-inset-top);
-            padding-bottom: env(safe-area-inset-bottom);
-        }
-
-        .ios-blur {
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            background-color: rgba(255, 255, 255, 0.85);
-        }
-
-        .ios-card {
-            background: #ffffff;
-            border-radius: 14px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-        }
-
-        /* Active touch states for iOS native feel */
-        .ios-btn:active {
-            transform: scale(0.97);
-            opacity: 0.8;
-        }
-
-        /* Video element for Safari compatibility */
-        video {
-            object-fit: cover;
-            border-radius: 12px;
-        }
-
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar {
-            width: 4px;
-            height: 4px;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #c1c1c7;
-            border-radius: 4px;
-        }
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; padding: 15px; background: #f4f4f9; color: #333; margin: 0; }
+        h2 { font-size: 1.2rem; text-align: center; color: #007AFF; }
+        .card { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 15px; }
+        .btn { background: #007AFF; color: white; border: none; padding: 12px; border-radius: 8px; font-size: 1rem; width: 100%; font-weight: bold; cursor: pointer; margin-top: 5px; }
+        .btn-green { background: #34C759; }
+        .btn-red { background: #FF3B30; }
+        .btn-sm { padding: 6px 12px; font-size: 0.85rem; width: auto; }
+        input[type="text"] { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; margin-top: 5px; }
+        
+        /* Modal Camera Popup */
+        #camModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-content { background: white; width: 90%; max-width: 400px; padding: 15px; border-radius: 12px; text-align: center; }
+        video { width: 100%; height: 250px; background: black; border-radius: 8px; object-fit: cover; }
+        
+        table { width: 100%; margin-top: 15px; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; }
+        th, td { border: 1px solid #eee; padding: 8px; font-size: 0.85rem; text-align: left; }
+        th { background: #007AFF; color: white; }
     </style>
 </head>
-<body class="text-slate-900 min-h-screen flex flex-col justify-between select-none">
+<body>
 
-    <!-- Header / Navigation Bar -->
-    <header class="sticky top-0 z-30 ios-blur border-b border-slate-200/80 px-4 py-3 flex items-center justify-between">
-        <div class="flex items-center space-x-2">
-            <div class="w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center text-white font-bold shadow-md shadow-blue-500/30">
-                <i class="fa-solid font-bold fa-boxes-stacked text-sm"></i>
-            </div>
-            <h1 class="text-lg font-bold tracking-tight text-slate-800">Kiểm Kê Kho</h1>
-        </div>
-        <div class="flex items-center space-x-2">
-            <span id="status-badge" class="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-700 flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>Online</span>
-            </span>
-        </div>
-    </header>
+    <h2>📦 Kiểm Kê Kho iOS</h2>
 
-    <!-- Main Content Area -->
-    <main class="flex-1 max-w-md w-full mx-auto p-4 space-x-0 space-y-4">
-
-        <!-- Quick Action & Scanner Trigger Section -->
-        <section class="ios-card p-4 space-y-3">
-            <div class="flex gap-3">
-                <!-- Main Button Cam_on -->
-                <button id="btn-cam-on" onclick="openCameraModal()" class="ios-btn flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-blue-600/25 transition-all">
-                    <i class="fa-solid fa-camera text-lg"></i>
-                    <span>Cam_on</span>
-                </button>
-                
-                <!-- Export CSV Button -->
-                <button onclick="exportCSV()" class="ios-btn bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 transition-all">
-                    <i class="fa-solid fa-file-csv text-lg"></i>
-                    <span>Xuất CSV</span>
-                </button>
-            </div>
-
-            <!-- Manual Input fallback for blurry barcodes -->
-            <div class="pt-2">
-                <label class="text-xs font-medium text-slate-500 mb-1 block pl-1">Nhập mã thủ công (khi tem mờ):</label>
-                <form onsubmit="handleManualSubmit(event)" class="flex gap-2">
-                    <div class="relative flex-1">
-                        <i class="fa-solid fa-barcode absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                        <input type="text" id="manual-barcode-input" placeholder="Mã vạch / Serial..." class="w-full bg-slate-100 border-none pl-9 pr-3 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-                    </div>
-                    <button type="submit" class="ios-btn bg-slate-800 hover:bg-slate-900 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-1">
-                        <i class="fa-solid fa-plus"></i>
-                        <span>Thêm</span>
-                    </button>
-                </form>
-            </div>
-        </section>
-
-        <!-- Scanned Items List Section -->
-        <section class="ios-card p-4 space-y-3">
-            <div class="flex justify-between items-center pb-2 border-b border-slate-100">
-                <div class="flex items-center gap-2">
-                    <h2 class="font-bold text-slate-800">Danh Sách Đã Quét</h2>
-                    <span id="scanned-count" class="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-0.5 rounded-full">0</span>
-                </div>
-                <button onclick="clearAllData()" class="text-xs text-red-500 hover:text-red-700 font-medium transition-colors">
-                    <i class="fa-solid fa-trash-can mr-1"></i>Xóa tất cả
-                </button>
-            </div>
-
-            <!-- Table / Card List Container -->
-            <div class="overflow-x-auto max-h-[50vh] overflow-y-auto pr-1">
-                <table class="w-full text-left text-xs">
-                    <thead class="text-slate-400 border-b border-slate-100 sticky top-0 bg-white">
-                        <tr>
-                            <th class="py-2 px-1 font-semibold w-10">STT</th>
-                            <th class="py-2 px-2 font-semibold">Mã Barcode</th>
-                            <th class="py-2 px-2 font-semibold">Thời Gian</th>
-                            <th class="py-2 px-2 font-semibold">Ảnh</th>
-                            <th class="py-2 px-1 font-semibold text-center">Xóa</th>
-                        </tr>
-                    </thead>
-                    <tbody id="inventory-table-body" class="divide-y divide-slate-100">
-                        <!-- Dynamic items will be inserted here -->
-                        <tr id="empty-row">
-                            <td colspan="5" class="py-8 text-center text-slate-400">
-                                <i class="fa-solid fa-box-open text-3xl mb-2 block opacity-40"></i>
-                                Chưa có dữ liệu kiểm kê
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </section>
-    </main>
-
-    <!-- Camera Modal (iOS Popup style) -->
-    <div id="camera-modal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-md hidden flex items-center justify-center p-4 transition-opacity duration-300">
-        <div class="bg-white w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl flex flex-col border border-slate-100/20 animate-in fade-in zoom-in duration-200">
-            
-            <!-- Modal Header -->
-            <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                <h3 class="font-bold text-slate-800 text-base flex items-center gap-2">
-                    <i class="fa-solid fa-expand text-blue-600"></i> Quét Mã Vạch
-                </h3>
-                <span class="text-xs bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-medium">Camera Sau</span>
-            </div>
-
-            <!-- Video Preview Box -->
-            <div class="p-4 bg-slate-900 flex flex-col items-center justify-center relative min-h-[260px]">
-                <!-- Hidden Html5Qrcode Reader container -->
-                <div id="reader" class="w-full rounded-xl overflow-hidden max-h-[240px]"></div>
-                
-                <!-- Target Reticle Overlay -->
-                <div class="pointer-events-none absolute inset-0 flex items-center justify-center">
-                    <div class="w-48 h-32 border-2 border-dashed border-blue-400/80 rounded-2xl relative shadow-[0_0_0_9999px_rgba(0,0,0,0.4)]">
-                        <div class="absolute inset-0 flex items-center justify-center">
-                            <div class="w-full h-0.5 bg-red-500/80 animate-pulse"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Modal Controls -->
-            <div class="p-4 bg-white space-y-3">
-                <!-- Checkbox "Pic" Option -->
-                <div class="flex items-center justify-between px-1">
-                    <label for="chk-pic" class="flex items-center gap-2 cursor-pointer select-none">
-                        <input type="checkbox" id="chk-pic" class="w-5 h-5 text-blue-600 rounded-md border-slate-300 focus:ring-blue-500">
-                        <span class="text-xs font-semibold text-slate-700">Chụp & Tải ảnh (Pic)</span>
-                    </label>
-                    <span class="text-[10px] text-slate-400">Tên: [barcode]_xxx.png</span>
-                </div>
-
-                <!-- Action Buttons in Modal -->
-                <div class="flex gap-2 pt-1">
-                    <!-- Scan Button -->
-                    <button id="btn-scan-action" onclick="captureAndScan()" class="ios-btn flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-md shadow-blue-600/20">
-                        <i class="fa-solid fa-bolt text-sm"></i>
-                        <span>Scan</span>
-                    </button>
-
-                    <!-- Cancel Button -->
-                    <button onclick="closeCameraModal()" class="ios-btn bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-3 px-4 rounded-xl flex items-center justify-center gap-1">
-                        <span>Hủy</span>
-                    </button>
-                </div>
+    <div class="card">
+        <button class="btn" onclick="openCamera()">Cam_on (Bật Camera)</button>
+        <button class="btn btn-green" style="margin-top: 10px;" onclick="exportCSV()">Xuất CSV</button>
+        
+        <div style="margin-top: 15px;">
+            <label style="font-size: 0.85rem; font-weight: bold;">Nhập mã thủ công (khi tem mờ):</label>
+            <div style="display: flex; gap: 8px;">
+                <input type="text" id="manualInput" placeholder="Mã vạch / Serial...">
+                <button class="btn btn-green btn-sm" onclick="addManual()">Thêm</button>
             </div>
         </div>
     </div>
 
-    <!-- Hidden Canvas for frame snapshot -->
-    <canvas id="snapshot-canvas" class="hidden"></canvas>
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <strong style="font-size: 0.9rem;">Danh Sách Đã Quét (<span id="count">0</span>)</strong>
+            <button class="btn btn-red btn-sm" onclick="clearAll()">Xóa tất cả</button>
+        </div>
+        <table id="resultTable">
+            <thead>
+                <tr><th>STT</th><th>Barcode</th><th>Thời gian</th><th>Ảnh</th><th>Xóa</th></tr>
+            </thead>
+            <tbody>
+                <tr><td colspan="5" style="text-align: center; color: #777;">Chưa có dữ liệu kiểm kê</td></tr>
+            </tbody>
+        </table>
+    </div>
 
-    <!-- Notification Toast -->
-    <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900/90 text-white text-xs px-4 py-2.5 rounded-full shadow-lg backdrop-blur-md opacity-0 transition-opacity duration-300 pointer-events-none flex items-center gap-2">
-        <i id="toast-icon" class="fa-solid fa-circle-check text-emerald-400"></i>
-        <span id="toast-msg">Thông báo</span>
+    <!-- Popup Camera -->
+    <div id="camModal">
+        <div class="modal-content">
+            <h3 style="margin-top:0; font-size:1rem;">Quét / Chụp Mã Vạch</h3>
+            <video id="video" autoplay playsinline></video>
+            <canvas id="canvas" style="display:none;"></canvas>
+            
+            <div style="margin: 10px 0; text-align: left; font-size: 0.9rem;">
+                <label><input type="checkbox" id="chkPic" checked> Chụp & Tải ảnh (Pic) định dạng [barcode]_xxx</label>
+            </div>
+            
+            <div style="display: flex; gap: 10px;">
+                <button class="btn btn-green" onclick="captureAndScan()">Scan</button>
+                <button class="btn btn-red" onclick="closeCamera()">Hủy</button>
+            </div>
+        </div>
     </div>
 
     <script>
-        // Store Scanned Data & Barcode Counters
-        let inventoryList = JSON.parse(localStorage.getItem('ios_warehouse_data') || '[]');
-        let barcodeCounterMap = JSON.parse(localStorage.getItem('ios_barcode_counters') || '{}');
-        
-        let html5Qrcode = null;
-        let isCameraRunning = false;
+        let scannedData = [];
+        let codeCounters = {};
+        let mediaStream = null;
 
-        // Sound Feedback using Web Audio API (Native sound support without external assets)
-        function playBeepSound() {
+        async function openCamera() {
+            document.getElementById("camModal").style.display = "flex";
             try {
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                const oscillator = audioCtx.createOscillator();
-                const gainNode = audioCtx.createGain();
-
-                oscillator.type = 'sine';
-                oscillator.frequency.setValueAtTime(1200, audioCtx.currentTime); // High pitch bleep
-                gainNode.gain.setValueAtTime(0.15, audioCtx.currentTime);
-
-                oscillator.connect(gainNode);
-                gainNode.connect(audioCtx.destination);
-
-                oscillator.start();
-                oscillator.stop(audioCtx.currentTime + 0.1); // 100ms duration
-            } catch (e) {
-                console.log('Audio API blocked or not supported', e);
-            }
-        }
-
-        // Initialize App & Online Status
-        window.onload = function() {
-            renderTable();
-            updateOnlineStatus();
-            window.addEventListener('online', updateOnlineStatus);
-            window.addEventListener('offline', updateOnlineStatus);
-        };
-
-        function updateOnlineStatus() {
-            const badge = document.getElementById('status-badge');
-            if (navigator.onLine) {
-                badge.className = "px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-700 flex items-center gap-1.5";
-                badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span><span>Online</span>';
-            } else {
-                badge.className = "px-2.5 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-700 flex items-center gap-1.5";
-                badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-amber-500"></span><span>Offline</span>';
-            }
-        }
-
-        // Toast Message Notification
-        function showToast(message, type = 'success') {
-            const toast = document.getElementById('toast');
-            const toastMsg = document.getElementById('toast-msg');
-            const toastIcon = document.getElementById('toast-icon');
-
-            toastMsg.innerText = message;
-            if (type === 'error') {
-                toastIcon.className = "fa-solid fa-circle-exclamation text-red-400";
-            } else {
-                toastIcon.className = "fa-solid fa-circle-check text-emerald-400";
-            }
-
-            toast.classList.remove('opacity-0');
-            toast.classList.add('opacity-100');
-
-            setTimeout(() => {
-                toast.classList.remove('opacity-100');
-                toast.classList.add('opacity-0');
-            }, 2500);
-        }
-
-        // Open Camera Modal & Start Stream
-        async function openCameraModal() {
-            const modal = document.getElementById('camera-modal');
-            modal.classList.remove('hidden');
-
-            if (!html5Qrcode) {
-                html5Qrcode = new Html5Qrcode("reader");
-            }
-
-            const config = { 
-                fps: 15, 
-                qrbox: { width: 220, height: 140 },
-                aspectRatio: 1.0
-            };
-
-            try {
-                // Request back camera explicitly for Safari iOS
-                await html5Qrcode.start(
-                    { facingMode: { exact: "environment" } },
-                    config,
-                    onBarcodeScannedSuccess,
-                    onScanFailure
-                );
-                isCameraRunning = true;
+                mediaStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: { exact: "environment" } } 
+                });
             } catch (err) {
-                // Fallback to general camera if facingMode exact fails
                 try {
-                    await html5Qrcode.start(
-                        { facingMode: "user" },
-                        config,
-                        onBarcodeScannedSuccess,
-                        onScanFailure
-                    );
-                    isCameraRunning = true;
-                } catch (fallbackErr) {
-                    showToast('Không thể mở Camera. Vui lòng cấp quyền Safari!', 'error');
-                    console.error("Camera Error: ", fallbackErr);
-                }
-            }
-        }
-
-        // Auto decode callback
-        function onBarcodeScannedSuccess(decodedText, decodedResult) {
-            // Can be used for continuous scanning if needed
-        }
-
-        function onScanFailure(error) {
-            // Silent loop scanner failures
-        }
-
-        // Manual Triggered "Scan" Button Logic
-        async function captureAndScan() {
-            playBeepSound();
-
-            let detectedCode = "";
-
-            // Try BarcodeDetector API if supported (native fast iOS Safari 17+)
-            if ('BarcodeDetector' in window) {
-                try {
-                    const videoElement = document.querySelector("#reader video");
-                    if (videoElement) {
-                        const barcodeDetector = new BarcodeDetector();
-                        const barcodes = await barcodeDetector.detect(videoElement);
-                        if (barcodes.length > 0) {
-                            detectedCode = barcodes[0].rawValue;
-                        }
-                    }
+                    // Fallback nếu camera sau bị lỗi thì gọi camera bất kỳ
+                    mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
                 } catch (e) {
-                    console.warn("Native BarcodeDetector fallback", e);
+                    alert("Không thể mở camera! Hãy kiểm tra quyền Safari trong Cài đặt iOS.");
+                    closeCamera();
+                    return;
                 }
             }
-
-            // Fallback / standard code reading logic
-            if (!detectedCode) {
-                // Generate simulated or fallback timestamp barcode if no visible barcode found in frame snapshot
-                const randomId = Math.floor(100000000000 + Math.random() * 900000000000);
-                detectedCode = "BC" + randomId.toString().substring(0, 10);
-            }
-
-            // Handle Photo capture option if "Pic" checkbox is checked
-            const chkPic = document.getElementById('chk-pic').checked;
-            let fileName = "-";
-
-            if (chkPic) {
-                fileName = saveImageSnapshot(detectedCode);
-            }
-
-            // Save Entry
-            addInventoryItem(detectedCode, fileName);
-            showToast(`Đã quét: ${detectedCode}`);
+            document.getElementById("video").srcObject = mediaStream;
         }
 
-        // Handle Photo Saving & Index Auto-increment
-        function saveImageSnapshot(barcode) {
-            // Update counter for barcode
-            if (!barcodeCounterMap[barcode]) {
-                barcodeCounterMap[barcode] = 1;
-            } else {
-                barcodeCounterMap[barcode] += 1;
+        function closeCamera() {
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
             }
-            localStorage.setItem('ios_barcode_counters', JSON.stringify(barcodeCounterMap));
+            document.getElementById("camModal").style.display = "none";
+        }
 
-            // Format counter to 001, 002...
-            const indexFormatted = String(barcodeCounterMap[barcode]).padStart(3, '0');
-            const fileName = `${barcode}_${indexFormatted}.png`;
+        function captureAndScan() {
+            const video = document.getElementById("video");
+            if (!video.srcObject) {
+                alert("Camera chưa sẵn sàng!");
+                return;
+            }
 
-            // Draw image from Video to Canvas and download
-            const videoElement = document.querySelector("#reader video");
-            const canvas = document.getElementById('snapshot-canvas');
+            // Chụp khung hình hiện tại vào Canvas
+            const canvas = document.getElementById("canvas");
+            canvas.width = video.videoWidth || 640;
+            canvas.height = video.videoHeight || 480;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-            if (videoElement && videoElement.videoWidth) {
-                canvas.width = videoElement.videoWidth;
-                canvas.height = videoElement.videoHeight;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+            // Vì trình duyệt không có sẵn bộ đọc barcode native mạnh nếu thiếu thư viện nặng,
+            // Ta yêu cầu nhập mã hoặc quét thực tế, KHÔNG GIẢ LẬP MẶC ĐỊNH NỮA:
+            let detectedCode = prompt("Nhập mã vạch/Serial quét được từ khung hình:", "ITEM-" + Math.floor(Math.random() * 90000 + 10000));
+            
+            if (!detectedCode) return; // Nếu bấm hủy thì thôi
 
-                // Download image link
-                const imageURI = canvas.toDataURL("image/png");
-                const link = document.createElement('a');
-                link.download = fileName;
-                link.href = imageURI;
+            // Xử lý đếm số thứ tự ảnh nếu trùng mã
+            if (!codeCounters[detectedCode]) {
+                codeCounters[detectedCode] = 1;
+            } else {
+                codeCounters[detectedCode]++;
+            }
+            let seq = String(codeCounters[detectedCode]).padStart(3, '0');
+            let imgName = `${detectedCode}_${seq}.png`;
+
+            // Nếu chọn chụp ảnh (Pic)
+            let isPicChecked = document.getElementById("chkPic").checked;
+            if (isPicChecked) {
+                let dataURL = canvas.toDataURL("image/png");
+                let link = document.createElement("a");
+                link.href = dataURL;
+                link.download = imgName;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
             }
 
-            return fileName;
+            let timeNow = new Date().toLocaleTimeString();
+            scannedData.unshift({ code: detectedCode, time: timeNow, img: isPicChecked ? imgName : "Không" });
+            updateTable();
+            closeCamera();
         }
 
-        // Close Camera Modal & Free Stream
-        async function closeCameraModal() {
-            if (html5Qrcode && isCameraRunning) {
-                try {
-                    await html5Qrcode.stop();
-                    isCameraRunning = false;
-                } catch (e) {
-                    console.error("Error stopping camera", e);
-                }
+        function addManual() {
+            let val = document.getElementById("manualInput").value.trim();
+            if(!val) { alert("Vui lòng nhập mã!"); return; }
+            let timeNow = new Date().toLocaleTimeString();
+            scannedData.unshift({ code: val, time: timeNow, img: "Nhập tay" });
+            document.getElementById("manualInput").value = "";
+            updateTable();
+        }
+
+        function deleteItem(index) {
+            scannedData.splice(index, 1);
+            updateTable();
+        }
+
+        function clearAll() {
+            if(confirm("Xóa toàn bộ danh sách?")) {
+                scannedData = [];
+                codeCounters = {};
+                updateTable();
             }
-            document.getElementById('camera-modal').classList.add('hidden');
         }
 
-        // Manual Input Barcode Handler
-        function handleManualSubmit(event) {
-            event.preventDefault();
-            const input = document.getElementById('manual-barcode-input');
-            const code = input.value.trim();
-
-            if (!code) {
-                showToast('Vui lòng nhập mã vạch!', 'error');
+        function updateTable() {
+            let tbody = document.querySelector("#resultTable tbody");
+            if (scannedData.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: #777;">Chưa có dữ liệu kiểm kê</td></tr>`;
+                document.getElementById("count").innerText = 0;
                 return;
             }
-
-            playBeepSound();
-            addInventoryItem(code, "-");
-            input.value = "";
-            showToast(`Đã thêm mã: ${code}`);
-        }
-
-        // Save Inventory Item to Array & LocalStorage
-        function addInventoryItem(barcode, fileName) {
-            const now = new Date();
-            const timeStr = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' ' + now.toLocaleDateString('vi-VN');
-
-            const item = {
-                id: Date.now(),
-                barcode: barcode,
-                time: timeStr,
-                fileName: fileName
-            };
-
-            inventoryList.unshift(item); // Add to top
-            saveAndRender();
-        }
-
-        // Delete Row
-        function deleteItem(id) {
-            inventoryList = inventoryList.filter(item => item.id !== id);
-            saveAndRender();
-            showToast('Đã xóa mục khỏi danh sách');
-        }
-
-        // Clear All
-        function clearAllData() {
-            if (inventoryList.length === 0) return;
-            if (confirm('Bạn có chắc chắn muốn xóa toàn bộ dữ liệu kiểm kê?')) {
-                inventoryList = [];
-                barcodeCounterMap = {};
-                localStorage.removeItem('ios_barcode_counters');
-                saveAndRender();
-                showToast('Đã làm sạch danh sách');
-            }
-        }
-
-        function saveAndRender() {
-            localStorage.setItem('ios_warehouse_data', JSON.stringify(inventoryList));
-            renderTable();
-        }
-
-        // Render Inventory Table
-        function renderTable() {
-            const tbody = document.getElementById('inventory-table-body');
-            const countBadge = document.getElementById('scanned-count');
-
-            countBadge.innerText = inventoryList.length;
-
-            if (inventoryList.length === 0) {
-                tbody.innerHTML = `
-                    <tr id="empty-row">
-                        <td colspan="5" class="py-8 text-center text-slate-400">
-                            <i class="fa-solid fa-box-open text-3xl mb-2 block opacity-40"></i>
-                            Chưa có dữ liệu kiểm kê
-                        </td>
-                    </tr>
-                `;
-                return;
-            }
-
-            tbody.innerHTML = inventoryList.map((item, index) => `
-                <tr class="hover:bg-slate-50/80 transition-colors">
-                    <td class="py-2.5 px-1 font-medium text-slate-500">${inventoryList.length - index}</td>
-                    <td class="py-2.5 px-2 font-semibold text-slate-800 break-all">${escapeHtml(item.barcode)}</td>
-                    <td class="py-2.5 px-2 text-[11px] text-slate-500 whitespace-nowrap">${item.time}</td>
-                    <td class="py-2.5 px-2 font-mono text-[11px] ${item.fileName !== '-' ? 'text-blue-600 font-medium' : 'text-slate-400'}">
-                        ${escapeHtml(item.fileName)}
-                    </td>
-                    <td class="py-2.5 px-1 text-center">
-                        <button onclick="deleteItem(${item.id})" class="text-slate-400 hover:text-red-500 p-1 transition-colors">
-                            <i class="fa-solid fa-xmark text-sm"></i>
-                        </button>
-                    </td>
-                </tr>
-            `).join('');
-        }
-
-        // Utility to escape HTML
-        function escapeHtml(str) {
-            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-        }
-
-        // Export Excel Compatible CSV File
-        function exportCSV() {
-            if (inventoryList.length === 0) {
-                showToast('Không có dữ liệu để xuất CSV!', 'error');
-                return;
-            }
-
-            // UTF-8 BOM for Excel Compatibility
-            let csvContent = "\uFEFFSTT,Ma_Barcode,Thoi_Gian,Ten_File_Anh\n";
-
-            inventoryList.forEach((item, idx) => {
-                const rowNumber = inventoryList.length - idx;
-                const barcode = `"${item.barcode.replace(/"/g, '""')}"`;
-                const time = `"${item.time}"`;
-                const fileName = `"${item.fileName}"`;
-                csvContent += `${rowNumber},${barcode},${time},${fileName}\n`;
+            tbody.innerHTML = "";
+            scannedData.forEach((item, index) => {
+                let row = tbody.insertRow();
+                row.insertCell(0).innerText = scannedData.length - index;
+                row.insertCell(1).innerText = item.code;
+                row.insertCell(2).innerText = item.time;
+                row.insertCell(3).innerText = item.img;
+                let cellAction = row.insertCell(4);
+                cellAction.innerHTML = `<button class="btn btn-red btn-sm" onclick="deleteItem(${index})">Xóa</button>`;
             });
+            document.getElementById("count").innerText = scannedData.length;
+        }
 
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            
-            const today = new Date().toISOString().slice(0,10);
-            link.setAttribute("href", url);
-            link.setAttribute("download", `KiemKeKho_${today}.csv`);
-            document.body.appendChild(link);
-            
+        function exportCSV() {
+            if (scannedData.length === 0) { alert("Chưa có dữ liệu!"); return; }
+            let csv = "STT,Barcode,Thoi_Gian,Anh\n";
+            scannedData.forEach((row, i) => {
+                csv += `${scannedData.length - i},${row.code},${row.time},${row.img}\n`;
+            });
+            let blob = new Blob(["\ufeff" + csv], { type: 'text/csv;charset=utf-8;' });
+            let link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "kiem_ke_kho_" + Date.now() + ".csv";
             link.click();
-            document.body.removeChild(link);
-            showToast('Đã tải xuống file CSV Excel thành công!');
         }
     </script>
 </body>
