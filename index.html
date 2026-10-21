@@ -17,7 +17,7 @@
         
         #camModal, #previewModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; justify-content: center; align-items: center; }
         .modal-content { background: white; width: 92%; max-width: 400px; padding: 15px; border-radius: 12px; text-align: center; box-sizing: border-box; }
-        video, img { width: 100%; height: 240px; background: black; border-radius: 8px; object-fit: contain; }
+        video, canvas#snapshotCanvas, img { width: 100%; height: 240px; background: black; border-radius: 8px; object-fit: contain; }
         .detected-box { background: #eef7ee; color: #2e7d32; padding: 8px; border-radius: 6px; font-weight: bold; margin: 10px 0; font-size: 0.95rem; border: 1px dashed #2e7d32; }
         
         table { width: 100%; margin-top: 15px; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; }
@@ -62,7 +62,8 @@
         <div class="modal-content">
             <h3 style="margin-top:0; font-size:1rem;">Chĩa Camera vào Mã Vạch</h3>
             <video id="video" autoplay playsinline></video>
-            <canvas id="canvas" style="display:none;"></canvas>
+            <!-- Thẻ canvas dùng để đóng băng (freeze) hình ảnh khi bắt được mã -->
+            <canvas id="snapshotCanvas" style="display:none;"></canvas>
             
             <div class="detected-box" id="detectedStatus">Đang tìm mã vạch...</div>
 
@@ -71,13 +72,13 @@
             </div>
             
             <div style="display: flex; gap: 10px;">
-                <button class="btn btn-green" onclick="saveCurrentScan()">Scan (Lưu Dữ Liệu)</button>
+                <button class="btn btn-green" id="btnSave" onclick="saveCurrentScan()">Save Pic</button>
                 <button class="btn btn-red" onclick="closeCamera()">Hủy</button>
             </div>
         </div>
     </div>
 
-    <!-- Popup Xem trước ảnh vừa chụp -->
+    <!-- Popup Xem trước ảnh vừa lưu -->
     <div id="previewModal">
         <div class="modal-content">
             <h3 id="previewTitle" style="margin-top:0; font-size:0.95rem; color:#007AFF;">Ảnh chụp sản phẩm</h3>
@@ -93,33 +94,49 @@
         let codeReader = null;
         let currentDetectedCode = "";
         let latestImageDataURL = "";
+        let isFrozen = false;
 
         async function openCamera() {
             document.getElementById("camModal").style.display = "flex";
             document.getElementById("detectedStatus").innerText = "Đang tìm mã vạch...";
             document.getElementById("detectedStatus").style.color = "#888";
+            
+            // Reset trạng thái hiển thị video
+            document.getElementById("video").style.display = "block";
+            document.getElementById("snapshotCanvas").style.display = "none";
             currentDetectedCode = "";
             latestImageDataURL = "";
+            isFrozen = false;
 
             try {
                 codeReader = new ZXing.BrowserMultiFormatReader();
                 codeReader.decodeFromVideoDevice(undefined, 'video', (result, err) => {
-                    if (result) {
+                    if (result && !isFrozen) {
+                        isFrozen = true;
                         currentDetectedCode = result.text;
-                        document.getElementById("detectedStatus").innerText = "Đã tìm thấy: " + currentDetectedCode;
+                        document.getElementById("detectedStatus").innerText = "Đã khóa mã: " + currentDetectedCode;
                         document.getElementById("detectedStatus").style.color = "#2e7d32";
                         if (navigator.vibrate) navigator.vibrate(100);
 
-                        // CHỤP HÌNH TỰ ĐỘNG NGAY LÚC QUÉT TRÚNG MÃ ĐỂ KHÔNG BỊ TRẮNG TRƠN
+                        // ĐÓNG BĂNG HÌNH ẢNH NGAY LẬP TỨC TRÊN CANVAS
                         const video = document.getElementById("video");
-                        const canvas = document.getElementById("canvas");
+                        const canvas = document.getElementById("snapshotCanvas");
                         let w = video.videoWidth || video.clientWidth || 640;
                         let h = video.videoHeight || video.clientHeight || 480;
                         canvas.width = w;
                         canvas.height = h;
                         const ctx = canvas.getContext("2d");
                         ctx.drawImage(video, 0, 0, w, h);
+
+                        // Chuyển hiển thị từ video sang canvas đứng yên
+                        video.style.display = "none";
+                        canvas.style.display = "block";
                         latestImageDataURL = canvas.toDataURL("image/png");
+
+                        // Dừng hẳn luồng quét
+                        if (codeReader) {
+                            codeReader.reset();
+                        }
                     }
                 });
             } catch (e) {
@@ -139,7 +156,7 @@
         function saveCurrentScan() {
             let finalCode = currentDetectedCode;
             if (!finalCode) {
-                finalCode = prompt("Chưa bắt tự động được mã. Nhập thủ công mã vạch:", "");
+                finalCode = prompt("Chưa bắt được mã tự động. Nhập thủ công mã vạch:", "");
             }
 
             if (!finalCode || finalCode.trim() === "") {
