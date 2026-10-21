@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kiểm Kê Kho iOS</title>
-    <!-- Thư viện giải mã mã vạch cực mạnh cho Web -->
     <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.19.1/umd/index.min.js"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; padding: 15px; background: #f4f4f9; color: #333; margin: 0; }
@@ -16,9 +15,9 @@
         .btn-sm { padding: 6px 12px; font-size: 0.85rem; width: auto; }
         input[type="text"] { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; margin-top: 5px; }
         
-        #camModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; justify-content: center; align-items: center; }
+        #camModal, #previewModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; justify-content: center; align-items: center; }
         .modal-content { background: white; width: 92%; max-width: 400px; padding: 15px; border-radius: 12px; text-align: center; box-sizing: border-box; }
-        video { width: 100%; height: 260px; background: black; border-radius: 8px; object-fit: contain; }
+        video, img { width: 100%; height: 240px; background: black; border-radius: 8px; object-fit: contain; }
         .detected-box { background: #eef7ee; color: #2e7d32; padding: 8px; border-radius: 6px; font-weight: bold; margin: 10px 0; font-size: 0.95rem; border: 1px dashed #2e7d32; }
         
         table { width: 100%; margin-top: 15px; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; }
@@ -68,13 +67,23 @@
             <div class="detected-box" id="detectedStatus">Đang tìm mã vạch...</div>
 
             <div style="margin: 10px 0; text-align: left; font-size: 0.85rem;">
-                <label><input type="checkbox" id="chkPic" checked> Chụp & Tải ảnh (Pic) định dạng [barcode]_xxx</label>
+                <label><input type="checkbox" id="chkPic" checked> Chụp & Xem ảnh (Pic)</label>
             </div>
             
             <div style="display: flex; gap: 10px;">
                 <button class="btn btn-green" onclick="saveCurrentScan()">Scan (Lưu Dữ Liệu)</button>
                 <button class="btn btn-red" onclick="closeCamera()">Hủy</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Popup Xem trước ảnh vừa chụp cho iOS -->
+    <div id="previewModal">
+        <div class="modal-content">
+            <h3 id="previewTitle" style="margin-top:0; font-size:0.95rem; color:#007AFF;">Ảnh chụp sản phẩm</h3>
+            <img id="previewImg" src="" alt="Captured Image">
+            <p style="font-size: 0.75rem; color: #666; margin: 8px 0;">Mẹo: Chạm giữ vào ảnh phía trên và chọn "Lưu hình ảnh" để lưu về iPhone.</p>
+            <button class="btn" onclick="closePreview()">Đóng & Tiếp tục</button>
         </div>
     </div>
 
@@ -92,9 +101,6 @@
 
             try {
                 codeReader = new ZXing.BrowserMultiFormatReader();
-                const videoElement = document.getElementById("video");
-                
-                // Quét liên tục trên luồng Camera
                 codeReader.decodeFromVideoDevice(undefined, 'video', (result, err) => {
                     if (result) {
                         currentDetectedCode = result.text;
@@ -104,7 +110,7 @@
                     }
                 });
             } catch (e) {
-                alert("Không thể khởi động Camera. Hãy kiểm tra quyền truy cập Safari!");
+                alert("Không thể khởi động Camera!");
                 closeCamera();
             }
         }
@@ -119,20 +125,17 @@
 
         function saveCurrentScan() {
             let finalCode = currentDetectedCode;
-
-            // Nếu camera chưa tự bắt được mã vạch trong thời gian thực, cho phép xác nhận/nhập thủ công
             if (!finalCode) {
-                finalCode = prompt("Chưa bắt tự động được mã. Bạn có thể gõ thủ công mã vạch vào đây:", "");
+                finalCode = prompt("Chưa bắt tự động được mã. Nhập thủ công mã vạch:", "");
             }
 
             if (!finalCode || finalCode.trim() === "") {
-                alert("Vui lòng quét đúng mã vạch hoặc nhập mã trước khi bấm Scan!");
+                alert("Vui lòng quét đúng mã vạch hoặc nhập mã!");
                 return;
             }
 
             finalCode = finalCode.trim();
 
-            // Xử lý đếm số thứ tự ảnh nếu trùng mã
             if (!codeCounters[finalCode]) {
                 codeCounters[finalCode] = 1;
             } else {
@@ -141,8 +144,11 @@
             let seq = String(codeCounters[finalCode]).padStart(3, '0');
             let imgName = `${finalCode}_${seq}.png`;
 
-            // Xử lý chụp khung hình canvas để tải ảnh xuống
             let isPicChecked = document.getElementById("chkPic").checked;
+            let timeNow = new Date().toLocaleTimeString();
+            
+            closeCamera();
+
             if (isPicChecked) {
                 const video = document.getElementById("video");
                 const canvas = document.getElementById("canvas");
@@ -152,18 +158,19 @@
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
                 let dataURL = canvas.toDataURL("image/png");
-                let link = document.createElement("a");
-                link.href = dataURL;
-                link.download = imgName;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
+                
+                // Hiển thị popup chứa thẻ <img> để người dùng bấm lưu thủ công trên iOS
+                document.getElementById("previewTitle").innerText = "Ảnh: " + imgName;
+                document.getElementById("previewImg").src = dataURL;
+                document.getElementById("previewModal").style.display = "flex";
             }
 
-            let timeNow = new Date().toLocaleTimeString();
             scannedData.unshift({ code: finalCode, time: timeNow, img: isPicChecked ? imgName : "Không" });
             updateTable();
-            closeCamera();
+        }
+
+        function closePreview() {
+            document.getElementById("previewModal").style.display = "none";
         }
 
         function addManual() {
