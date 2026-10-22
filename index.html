@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kiểm Kê Kho Pro (Offline)</title>
+    <title>Kiểm Kê Kho Pro (Offline + Location)</title>
     <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.19.1/umd/index.min.js"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; padding: 15px; background: #f4f4f9; color: #333; margin: 0; }
@@ -23,15 +23,26 @@
         .detected-box { background: #eef7ee; color: #2e7d32; padding: 8px; border-radius: 6px; font-weight: bold; margin: 8px 0; font-size: 0.9rem; border: 1px dashed #2e7d32; }
         
         table { width: 100%; margin-top: 15px; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; }
-        th, td { border: 1px solid #eee; padding: 8px; font-size: 0.85rem; text-align: left; }
+        th, td { border: 1px solid #eee; padding: 8px; font-size: 0.8rem; text-align: left; }
         th { background: #007AFF; color: white; }
     </style>
 </head>
 <body>
 
-    <h2>📦 Kiểm Kê Kho Pro (Offline)</h2>
+    <h2>📦 Kiểm Kê Kho Pro (Location)</h2>
 
     <div class="card">
+        <!-- Cấu hình Location -->
+        <div style="margin-bottom: 12px; background: #f8f9fa; padding: 10px; border-radius: 8px; border: 1px solid #e9ecef;">
+            <label style="font-size: 0.85rem; font-weight: bold; color: #333;">Vị trí kho hiện tại (Location):</label>
+            <div style="display: flex; gap: 8px; align-items: center; margin-top: 4px;">
+                <input type="text" id="locationInput" placeholder="VD: Kệ A1, Tầng 2..." style="margin-top: 0; flex: 1;">
+            </div>
+            <div style="margin-top: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem;">
+                <label><input type="checkbox" id="keepLocation" checked> Giữ nguyên vị trí này cho lần quét sau</label>
+            </div>
+        </div>
+
         <button class="btn" onclick="openCamera()">Cam_on (Bật Camera)</button>
         <button class="btn btn-green" style="margin-top: 10px;" onclick="exportCSV()">Xuất CSV</button>
     </div>
@@ -43,10 +54,10 @@
         </div>
         <table id="resultTable">
             <thead>
-                <tr><th>STT</th><th>Barcode</th><th>Thời gian</th><th>Ảnh</th><th>Xóa</th></tr>
+                <tr><th>STT</th><th>Barcode</th><th>Location</th><th>Thời gian</th><th>Ảnh</th><th>Xóa</th></tr>
             </thead>
             <tbody>
-                <tr><td colspan="5" style="text-align: center; color: #777;">Chưa có dữ liệu kiểm kê</td></tr>
+                <tr><td colspan="6" style="text-align: center; color: #777;">Chưa có dữ liệu kiểm kê</td></tr>
             </tbody>
         </table>
     </div>
@@ -58,7 +69,7 @@
             <video id="video" autoplay playsinline></video>
             <canvas id="snapshotCanvas" style="display:none;"></canvas>
             
-            <div class="detected-box" id="detectedStatus">Đang tìm mã vạch (có thể đứng xa)...</div>
+            <div class="detected-box" id="detectedStatus">Đang tìm mã vạch...</div>
 
             <div style="display: flex; gap: 5px; margin-bottom: 8px;">
                 <button class="btn btn-orange btn-sm" id="btnTorch" onclick="toggleTorch()" style="flex:1;">🔦 Bật Flash</button>
@@ -97,8 +108,15 @@
         let torchEnabled = false;
 
         async function openCamera() {
+            let loc = document.getElementById("locationInput").value.trim();
+            if (!loc) {
+                alert("Vui lòng nhập hoặc kiểm tra lại Vị trí kho (Location) trước khi mở camera!");
+                document.getElementById("locationInput").focus();
+                return;
+            }
+
             document.getElementById("camModal").style.display = "flex";
-            document.getElementById("detectedStatus").innerText = "Đang mở camera độ phân giải cao...";
+            document.getElementById("detectedStatus").innerText = "Đang mở camera...";
             document.getElementById("detectedStatus").style.color = "#888";
             document.getElementById("btnTorch").innerText = "🔦 Bật Flash";
             
@@ -123,7 +141,6 @@
                 const videoElement = document.getElementById("video");
                 videoElement.srcObject = activeStream;
 
-                // Tự động quét liên tục với độ nhạy cao hơn
                 codeReader.decodeFromStream(activeStream, 'video', (result, err) => {
                     if (result && !isFrozen) {
                         freezeAndCapture(result.text);
@@ -160,7 +177,6 @@
             }
         }
 
-        // Tính năng mới: Chụp hình tổng thể khi code xấu / không có code để nhập tay
         function manualCaptureWithPic() {
             if (isFrozen) return;
             const videoElement = document.getElementById("video");
@@ -187,7 +203,7 @@
                 document.getElementById("detectedStatus").innerText = "Đã gán mã tay: " + currentDetectedCode;
                 document.getElementById("detectedStatus").style.color = "#5856D6";
             } else {
-                alert("Bạn chưa nhập mã, có thể bấm lại nút chụp hoặc nhập sau.");
+                alert("Bạn chưa nhập mã!");
             }
         }
 
@@ -233,6 +249,12 @@
                 return;
             }
 
+            let currentLoc = document.getElementById("locationInput").value.trim();
+            if (!currentLoc) {
+                alert("Vui lòng nhập Vị trí kho (Location)!");
+                return;
+            }
+
             finalCode = finalCode.trim();
 
             if (!codeCounters[finalCode]) {
@@ -254,8 +276,19 @@
                 document.getElementById("previewModal").style.display = "flex";
             }
 
-            scannedData.unshift({ code: finalCode, time: timeNow, img: isPicChecked ? imgName : "Không" });
+            scannedData.unshift({ 
+                code: finalCode, 
+                location: currentLoc, 
+                time: timeNow, 
+                img: isPicChecked ? imgName : "Không" 
+            });
             updateTable();
+
+            // Xử lý giữ nguyên hoặc reset location tùy chọn check
+            let keepLoc = document.getElementById("keepLocation").checked;
+            if (!keepLoc) {
+                document.getElementById("locationInput").value = "";
+            }
         }
 
         function closePreview() {
@@ -278,7 +311,7 @@
         function updateTable() {
             let tbody = document.querySelector("#resultTable tbody");
             if (scannedData.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: #777;">Chưa có dữ liệu kiểm kê</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #777;">Chưa có dữ liệu kiểm kê</td></tr>`;
                 document.getElementById("count").innerText = 0;
                 return;
             }
@@ -287,9 +320,10 @@
                 let row = tbody.insertRow();
                 row.insertCell(0).innerText = scannedData.length - index;
                 row.insertCell(1).innerText = item.code;
-                row.insertCell(2).innerText = item.time;
-                row.insertCell(3).innerText = item.img;
-                let cellAction = row.insertCell(4);
+                row.insertCell(2).innerText = item.location;
+                row.insertCell(3).innerText = item.time;
+                row.insertCell(4).innerText = item.img;
+                let cellAction = row.insertCell(5);
                 cellAction.innerHTML = `<button class="btn btn-red btn-sm" onclick="deleteItem(${index})">Xóa</button>`;
             });
             document.getElementById("count").innerText = scannedData.length;
@@ -297,9 +331,9 @@
 
         function exportCSV() {
             if (scannedData.length === 0) { alert("Chưa có dữ liệu!"); return; }
-            let csv = "STT,Barcode,Thoi_Gian,Anh\n";
+            let csv = "STT,Barcode,Location,Thoi_Gian,Anh\n";
             scannedData.forEach((row, i) => {
-                csv += `${scannedData.length - i},${row.code},${row.time},${row.img}\n`;
+                csv += `${scannedData.length - i},${row.code},"${row.location}",${row.time},${row.img}\n`;
             });
             let blob = new Blob(["\ufeff" + csv], { type: 'text/csv;charset=utf-8;' });
             let link = document.createElement("a");
